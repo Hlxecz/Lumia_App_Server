@@ -1,8 +1,8 @@
-package com.ch4.lumia_backend.security.jwt; // 실제 패키지 경로에 맞게 수정
+// lumin/src/main/java/com/ch4/lumia_backend/security/jwt/JwtUtil.java 수정본
+package com.ch4.lumia_backend.security.jwt;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
-// import io.jsonwebtoken.JwsHeader; // 필요시 사용
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.MalformedJwtException;
 import io.jsonwebtoken.UnsupportedJwtException;
@@ -11,14 +11,14 @@ import io.jsonwebtoken.security.SecurityException;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Value; // 이 import 문이 중복되지 않도록 확인 (이미 있다면 그대로 둡니다)
 import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Date;
-import java.util.regex.Pattern; // Base64 체크를 위한 정규식
+import java.util.regex.Pattern;
 
 @Component
 public class JwtUtil {
@@ -30,7 +30,15 @@ public class JwtUtil {
 
     private SecretKey secretKey;
 
-    private final long tokenValidityInMilliseconds = 60 * 60 * 1000L; // 1시간
+    // application.properties에서 Access Token 유효 기간을 읽어옵니다.
+    // 값이 없거나 잘못된 경우 기본값으로 1시간(3600000ms)을 사용합니다.
+    @Value("${jwt.access.token.validity.ms:3600000}")
+    private long accessTokenValidityInMilliseconds;
+
+    // application.properties에서 Refresh Token 유효 기간을 읽어옵니다.
+    // 값이 없거나 잘못된 경우 기본값으로 30일(2592000000ms)을 사용합니다.
+    @Value("${jwt.refresh.token.validity.ms:2592000000}")
+    private long refreshTokenValidityInMilliseconds;
 
     // 간단한 Base64 형식 체크를 위한 정규표현식 (엄밀한 검사는 아님)
     private static final Pattern BASE64_PATTERN = Pattern.compile("^[A-Za-z0-9+/]*={0,2}$");
@@ -39,9 +47,6 @@ public class JwtUtil {
         if (str == null || str.isEmpty()) {
             return false;
         }
-        // 길이도 Base64 인코딩의 특성 중 하나 (4의 배수)
-        // 하지만 더 중요한 것은 문자셋과 패딩 문자(=)의 위치입니다.
-        // 아래 정규식은 기본적인 문자셋과 패딩만 확인합니다.
         return str.length() % 4 == 0 && BASE64_PATTERN.matcher(str).matches();
     }
 
@@ -64,31 +69,46 @@ public class JwtUtil {
 
         if (keyBytes.length < 32) { // HS256 최소 32바이트 (256비트)
             logger.warn("Provided JWT secret key is too short ({} bytes). HS256 requires at least 32 bytes. ", keyBytes.length);
-            // 실제 운영에서는 여기서 에러를 발생시키거나 안전한 기본키로 대체하는 로직이 필요할 수 있습니다.
-            // 여기서는 경고만 로깅하고 진행합니다. Keys.hmacShaKeyFor는 짧은 키에 대해 예외를 발생시킬 수 있습니다.
-            // 만약 짧은 키로 인해 hmacShaKeyFor에서 에러가 발생한다면, application.properties의 키를 충분히 길게 해야 합니다.
         }
         this.secretKey = Keys.hmacShaKeyFor(keyBytes);
     }
 
+    // Access Token 생성 메소드
+    // (이름을 generateAccessToken으로 변경하는 것을 고려해볼 수 있습니다.)
     public String generateToken(String userId) {
         Date now = new Date();
-        Date validity = new Date(now.getTime() + this.tokenValidityInMilliseconds);
+        Date validity = new Date(now.getTime() + this.accessTokenValidityInMilliseconds); // 주입받은 Access Token 유효 기간 사용
 
         return Jwts.builder()
                 .subject(userId)
                 .issuedAt(now)
                 .expiration(validity)
-                .signWith(secretKey) // 키에 알고리즘 정보가 내포됨 (HMAC-SHA 계열)
+                .signWith(secretKey)
+                .compact();
+    }
+
+    // Refresh Token 생성 메소드 (새로 추가)
+    public String generateRefreshToken(String userId) {
+        Date now = new Date();
+        // Refresh Token의 만료 시간은 refreshTokenValidityInMilliseconds 변수를 사용합니다.
+        Date validity = new Date(now.getTime() + this.refreshTokenValidityInMilliseconds); // 주입받은 Refresh Token 유효 기간 사용
+
+        return Jwts.builder()
+                .subject(userId) // Access Token과 마찬가지로 사용자 ID를 포함할 수 있습니다.
+                // 필요하다면 다른 claim을 추가하여 Access Token과 구분할 수 있습니다.
+                // 예: .claim("type", "refresh") 
+                .issuedAt(now)
+                .expiration(validity)
+                .signWith(secretKey) // 동일한 secretKey를 사용하거나, Refresh Token용 별도 키를 사용할 수도 있습니다.
                 .compact();
     }
 
     public String getUserIdFromToken(String token) {
-        Claims claims = Jwts.parser() // parserBuilder() 대신 parser() 사용
-                .verifyWith(secretKey) // setSigningKey(Key) 대신 사용
+        Claims claims = Jwts.parser()
+                .verifyWith(secretKey)
                 .build()
-                .parseSignedClaims(token) // parseClaimsJws(String) 대신 사용
-                .getPayload(); // getBody() 대신 getPayload() (Jws<Claims>의 Claims 부분)
+                .parseSignedClaims(token)
+                .getPayload();
         return claims.getSubject();
     }
 
@@ -102,7 +122,9 @@ public class JwtUtil {
         } catch (SecurityException | MalformedJwtException e) {
             logger.error("Invalid JWT signature: {}", e.getMessage());
         } catch (ExpiredJwtException e) {
-            logger.error("Expired JWT token: {}", e.getMessage());
+            // Access Token이 만료된 것은 일반적인 상황이므로, 로그 레벨을 info 또는 debug로 낮추는 것을 고려해볼 수 있습니다.
+            // 또는 이 예외를 호출하는 쪽(예: JwtAuthenticationFilter)에서 특별히 처리하도록 할 수도 있습니다.
+            logger.info("Expired JWT token: {}", e.getMessage()); // 로그 레벨 변경 고려
         } catch (UnsupportedJwtException e) {
             logger.error("Unsupported JWT token: {}", e.getMessage());
         } catch (IllegalArgumentException e) {
