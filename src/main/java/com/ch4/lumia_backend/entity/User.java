@@ -1,52 +1,62 @@
-package com.ch4.lumia_backend.entity; // 패키지 경로는 실제 구조에 맞게 수정하세요
+// src/main/java/com/ch4/lumia_backend/entity/User.java
+package com.ch4.lumia_backend.entity;
 
 import jakarta.persistence.*;
-// import lombok.AccessLevel; // NoArgsConstructor 관련이라 삭제
-import lombok.Builder; // Builder는 사용하므로 유지
-import lombok.Getter; // Getter는 사용하므로 유지
-// import lombok.NoArgsConstructor; // 직접 생성자를 만들었으므로 삭제
+import lombok.Builder;
+import lombok.Getter;
+import lombok.Setter; // 필드 수정을 위해 Setter 추가
 
-@Getter // 필드 Getter 자동 생성 (문제 없었음)
-// @NoArgsConstructor(access = AccessLevel.PROTECTED) // <<< 문제의 원인이었으므로 삭제
+@Getter
+@Setter // <<< 필드 수정을 위해 Setter 추가
 @Entity
 @Table(name = "users")
-public class User extends BaseTimeEntity { // BaseTimeEntity 상속
+public class User extends BaseTimeEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "user_pk_id")
-    private Long id; // PK
+    private Long id;
 
     @Column(name = "user_login_id", unique = true, nullable = false, length = 50)
-    private String userId; // 로그인 아이디
+    private String userId;
 
     @Column(nullable = false)
-    private String password; // 비밀번호 (암호화 필요)
+    private String password;
 
     @Column(name = "user_name", nullable = false, length = 100)
-    private String username; // 이름
+    private String username;
 
-    @Column(unique = true, nullable = false) // 이메일 추가
-    private String email; // 이메일
+    @Column(unique = true, nullable = false)
+    private String email;
 
     @Column(nullable = false)
-    private String role; // 역할
+    private String role;
 
-    // === JPA가 요구하는 기본 생성자 직접 추가 ===
+    // === 새로운 프로필 필드 추가 ===
+    @Column(length = 20) // 예: "MALE", "FEMALE", "OTHER", "NOT_SPECIFIED" 등 유연하게
+    private String gender;
+
+    @Column(length = 10) // 예: "A_POSITIVE", "B_NEGATIVE", "O_POSITIVE", "AB_POSITIVE" 등
+    private String bloodType;
+
+    @Column(length = 10) // 예: "ISTJ", "ENFP"
+    private String mbti;
+    // ===========================
+
     protected User() {
-        // JPA가 내부적으로 사용하기 위한 생성자이므로 내용은 비워둡니다.
-        // 접근 제한자는 protected 또는 public이어야 합니다. (JPA 스펙상 권장)
     }
-    // =======================================
 
-    // Builder 패턴을 사용하기 위한 생성자 (Lombok @Builder 어노테이션이 이 생성자를 사용)
     @Builder
-    public User(String userId, String password, String username, String email, String role) {
+    public User(Long id, String userId, String password, String username, String email, String role,
+                String gender, String bloodType, String mbti) { // 빌더에도 새 필드 추가 (id도 포함시켜 완전한 빌더로)
+        this.id = id;
         this.userId = userId;
-        this.password = password; // 실제로는 암호화된 값 저장 필요
+        this.password = password;
         this.username = username;
         this.email = email;
         this.role = role;
-        // createdAt, updatedAt 필드는 BaseTimeEntity와 Auditing 기능이 자동으로 처리
+        this.gender = gender;
+        this.bloodType = bloodType;
+        this.mbti = mbti;
     }
 }
