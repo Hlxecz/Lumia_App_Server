@@ -39,6 +39,17 @@ public class UserService {
         }
         return false;
     }
+    
+ // PostController에서 User 엔티티를 직접 사용하기 위한 메소드 추가
+    @Transactional(readOnly = true)
+    public User findByUserId(String userId) {
+        return userRepository.findByUserId(userId)
+                .orElseThrow(() -> {
+                    logger.warn("User not found with userId: {}", userId);
+                    return new IllegalArgumentException("사용자를 찾을 수 없습니다: " + userId);
+                });
+    }
+    
 
     @Transactional
     public User signup(SignupRequestDto signupRequestDto) {
