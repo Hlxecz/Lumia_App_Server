@@ -31,7 +31,7 @@ public class CommentController {
      * 댓글 조회 - GET /api/posts/{postId}/comments
      */
     @GetMapping("/api/posts/{postId}/comments")
-    public ResponseEntity<?> getComments(@PathVariable Long postId) {
+    public ResponseEntity<?> getComments(@PathVariable("id") Long postId) {
         try {
             List<Comment> comments = commentService.getCommentsByPostId(postId);
             List<CommentResponseDto> response = comments.stream()
@@ -48,7 +48,7 @@ public class CommentController {
      * 댓글 작성 - POST /api/posts/{postId}/comments
      */
     @PostMapping("/api/posts/{postId}/comments")
-    public ResponseEntity<?> createComment(@PathVariable Long postId,
+    public ResponseEntity<?> createComment(@PathVariable("id") Long postId,
                                            @RequestBody CommentRequestDto dto) {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         String currentUserId = authentication.getName();
