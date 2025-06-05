@@ -17,6 +17,8 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Map; // Map import 추가
+
 @RestController
 @RequestMapping("/api/users") // 기본 경로 일관성 유지
 @RequiredArgsConstructor
@@ -107,6 +109,24 @@ public class UserController {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("로그아웃할 세션 정보가 없습니다.");
     }
 
+    // ▼▼▼ 아이디 찾기 API 엔드포인트 (@RequestParam 수정) ▼▼▼
+    @GetMapping("/auth/find-id")
+    public ResponseEntity<?> findUserIdByEmailController(@RequestParam(value = "email") String email) { // 파라미터 이름 "email" 명시
+        try {
+            String userId = userService.findUserIdByEmail(email);
+            // 아이디를 Map 객체에 담아 JSON 형태로 반환
+            return ResponseEntity.ok(Map.of("userId", userId));
+        } catch (IllegalArgumentException e) {
+            // 사용자를 찾을 수 없거나, 서비스 로직에서 발생한 다른 IllegalArgumentException 처리
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", e.getMessage()));
+        } catch (Exception e) {
+            logger.error("Error finding userId by email [Controller] {}: {}", email, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("message", "아이디를 찾는 중 서버 오류가 발생했습니다."));
+        }
+    }
+    // ▲▲▲ 아이디 찾기 API 엔드포인트 (@RequestParam 수정) ▲▲▲
+
+
     // === 알림 설정 관련 엔드포인트 ===
     @GetMapping("/me/settings")
     public ResponseEntity<?> getUserSettings() {
@@ -169,7 +189,7 @@ public class UserController {
             UserProfileResponseDto updatedProfile = userService.updateUserProfile(currentUserId, profileDto);
             return ResponseEntity.ok(updatedProfile);
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage()); // NOT_FOUND 보다는 BAD_REQUEST가 적절할 수 있음
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
         }
     }
 
