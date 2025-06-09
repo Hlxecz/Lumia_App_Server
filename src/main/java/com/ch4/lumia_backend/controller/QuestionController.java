@@ -22,36 +22,50 @@ public class QuestionController {
     private static final Logger logger = LoggerFactory.getLogger(QuestionController.class);
     private final QuestionService questionService;
 
+    private String getCurrentUserId() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated() || "anonymousUser".equals(authentication.getName())) {
+            return null;
+        }
+        return authentication.getName();
+    }
+    
+    // 정기 질문
     @GetMapping("/for-me")
     public ResponseEntity<?> getQuestionForCurrentUser() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-
-        // ▼▼▼ --- 수정된 부분 --- ▼▼▼
-        if (authentication == null || !authentication.isAuthenticated() || "anonymousUser".equals(authentication.getName())) {
-            logger.warn("getQuestionForCurrentUser: Authentication is null or user is anonymous. Responding with 401. Path: /api/questions/for-me");
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                                 .body("인증 정보가 유효하지 않거나 만료되었습니다. 토큰 재발급이 필요합니다.");
-        }
-        // ▲▲▲ --- 수정된 부분 --- ▲▲▲
-
-        String currentUserId = authentication.getName(); // 이제 authentication 객체는 null이 아님이 보장됨
-
-        if (currentUserId == null ) { // 위에서 anonymousUser도 걸렀으므로, 이 조건은 사실상 도달하기 어려움
-            logger.warn("Attempt to get question for-me without proper user ID after authentication check.");
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("인증 정보 내 사용자 ID가 없습니다.");
+        String currentUserId = getCurrentUserId();
+        if (currentUserId == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("인증 정보가 유효하지 않습니다.");
         }
 
-        logger.info("Fetching question for-me for user: {}", currentUserId);
         try {
-            NewMessageResponseDto responseDto = questionService.getQuestionForUser(currentUserId);
+            NewMessageResponseDto responseDto = questionService.getScheduledQuestionForUser(currentUserId);
             return ResponseEntity.ok(responseDto);
-        } catch (IllegalArgumentException e) {
-            logger.warn("Failed to get question for-me for user {}: {}", currentUserId, e.getMessage());
-            // 사용자를 찾을 수 없는 경우는 404가 더 적절할 수 있음
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
         } catch (Exception e) {
-            logger.error("Error fetching question for-me for user {}: {}", currentUserId, e.getMessage(), e);
+            logger.error("Error fetching scheduled question for user {}: {}", currentUserId, e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("질문 조회 중 오류 발생");
         }
     }
+
+    // ======================= ▼▼▼ 엔드포인트 추가 ▼▼▼ =======================
+    // 추가 질문 (On-Demand)
+    @GetMapping("/on-demand")
+    public ResponseEntity<?> getOnDemandQuestion() {
+        String currentUserId = getCurrentUserId();
+        if (currentUserId == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("인증 정보가 유효하지 않습니다.");
+        }
+
+        try {
+            NewMessageResponseDto responseDto = questionService.getOnDemandQuestion(currentUserId);
+            return ResponseEntity.ok(responseDto);
+        } catch (IllegalStateException e) {
+            // 하루 한 번 제한에 걸렸을 때
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(e.getMessage());
+        } catch (Exception e) {
+            logger.error("Error fetching on-demand question for user {}: {}", currentUserId, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("추가 질문 조회 중 오류 발생");
+        }
+    }
+    // ======================= ▲▲▲ 엔드포인트 추가 ▲▲▲ =======================
 }

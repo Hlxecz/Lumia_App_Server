@@ -25,23 +25,37 @@ public class UserSetting {
     @JoinColumn(name = "user_pk_id", nullable = false, unique = true)
     private User user;
 
-    @Column(name = "notification_interval", length = 50, columnDefinition = "VARCHAR(50) DEFAULT 'NONE'")
-    private String notificationInterval = "NONE"; // "NONE", "DAILY_SPECIFIC_TIME", "WHEN_APP_OPENS"
+    @Column(name = "notification_interval", length = 50, columnDefinition = "VARCHAR(50) DEFAULT 'DAILY_SPECIFIC_TIME'")
+    private String notificationInterval = "DAILY_SPECIFIC_TIME";
 
-    @Column(name = "notification_time") // HH:mm:ss
+    @Column(name = "notification_time")
     private LocalTime notificationTime;
-
-    @Column(name = "last_scheduled_message_at")
-    private LocalDateTime lastScheduledMessageAt;
-
-    @Column(name = "in_app_notification_enabled", columnDefinition = "BOOLEAN DEFAULT TRUE")
-    private boolean inAppNotificationEnabled = true;
 
     @Column(name = "push_notification_enabled", columnDefinition = "BOOLEAN DEFAULT TRUE")
     private boolean pushNotificationEnabled = true;
 
+    // ======================= ▼▼▼ 필드 추가 및 수정 ▼▼▼ =======================
+    @Column(name = "last_issued_at")
+    private LocalDateTime lastIssuedAt; // 마지막으로 질문을 제공한 시간 (정기/추가 모두 포함)
+
+    @Column(name = "last_issued_question_id")
+    private Long lastIssuedQuestionId; // 마지막으로 제공한 질문의 ID
+
+    @Column(name = "last_daily_mood_at")
+    private LocalDateTime lastDailyMoodAt; // 마지막으로 '추가 질문(DAILY_MOOD)'을 받은 시간
+    // ======================= ▲▲▲ 필드 추가 및 수정 ▲▲▲ =======================
+
+
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+
+    // 아래 필드들은 이제 사용하지 않으므로 주석 처리 또는 삭제합니다.
+    // @Column(name = "last_scheduled_message_at")
+    // private LocalDateTime lastScheduledMessageAt;
+    //
+    // @Column(name = "in_app_notification_enabled", columnDefinition = "BOOLEAN DEFAULT TRUE")
+    // private boolean inAppNotificationEnabled = true;
+
 
     @PreUpdate
     @PrePersist
@@ -50,12 +64,13 @@ public class UserSetting {
     }
 
     @Builder
-    public UserSetting(User user, String notificationInterval, LocalTime notificationTime, LocalDateTime lastScheduledMessageAt, boolean inAppNotificationEnabled, boolean pushNotificationEnabled) {
+    public UserSetting(User user, String notificationInterval, LocalTime notificationTime, boolean pushNotificationEnabled, LocalDateTime lastIssuedAt, Long lastIssuedQuestionId, LocalDateTime lastDailyMoodAt) {
         this.user = user;
         this.notificationInterval = notificationInterval;
         this.notificationTime = notificationTime;
-        this.lastScheduledMessageAt = lastScheduledMessageAt;
-        this.inAppNotificationEnabled = inAppNotificationEnabled;
         this.pushNotificationEnabled = pushNotificationEnabled;
+        this.lastIssuedAt = lastIssuedAt;
+        this.lastIssuedQuestionId = lastIssuedQuestionId;
+        this.lastDailyMoodAt = lastDailyMoodAt;
     }
 }

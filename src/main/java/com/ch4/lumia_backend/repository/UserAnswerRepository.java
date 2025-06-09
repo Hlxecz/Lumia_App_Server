@@ -1,20 +1,23 @@
 // src/main/java/com/ch4/lumia_backend/repository/UserAnswerRepository.java
 package com.ch4.lumia_backend.repository;
 
+import com.ch4.lumia_backend.entity.Question; // Question import 추가
 import com.ch4.lumia_backend.entity.User;
 import com.ch4.lumia_backend.entity.UserAnswer;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.stereotype.Repository; // @Repository 어노테이션은 선택 사항 (Spring Boot에서는 자동 인식)
+import org.springframework.stereotype.Repository;
 
-@Repository // Spring Bean으로 등록 (선택 사항이지만 명시적으로 추가 권장)
+@Repository
 public interface UserAnswerRepository extends JpaRepository<UserAnswer, Long> {
 
-    // 특정 사용자의 모든 답변을 답변 시간(answeredAt) 기준으로 내림차순 정렬하여 페이징 처리된 결과로 가져옴
     Page<UserAnswer> findByUserOrderByAnsweredAtDesc(User user, Pageable pageable);
 
-    // (필요시 추가 메소드 정의)
-    // 예: 특정 질문에 대한 모든 사용자 답변 조회
-    // List<UserAnswer> findByQuestion(Question question);
+    // ======================= ▼▼▼ 메소드 추가 ▼▼▼ =======================
+    /**
+     * 특정 사용자가 특정 질문에 대해 답변을 했는지 여부를 확인합니다.
+     */
+    boolean existsByUserAndQuestion(User user, Question question);
+    // ======================= ▲▲▲ 메소드 추가 ▲▲▲ =======================
 }
