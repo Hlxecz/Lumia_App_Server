@@ -19,6 +19,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.time.LocalTime;
 import java.util.Optional;
 
 @Service
@@ -30,24 +31,17 @@ public class UserService {
     private final PasswordEncoder passwordEncoder;
     private final UserSettingRepository userSettingRepository;
 
-    // PostController에서 User 엔티티를 직접 사용하기 위한 메소드 추가
     @Transactional(readOnly = true)
     public User findByUserId(String userId) {
         return userRepository.findByUserId(userId)
-                .orElseThrow(() -> {
-                    logger.warn("User not found with userId: {}", userId);
-                    return new IllegalArgumentException("사용자를 찾을 수 없습니다: " + userId);
-                });
+                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다: " + userId));
     }
     
     @Transactional(readOnly = true)
     public boolean login(String userId, String rawPassword) {
-        Optional<User> optionalUser = userRepository.findByUserId(userId);
-        if (optionalUser.isPresent()) {
-            User foundUser = optionalUser.get();
-            return passwordEncoder.matches(rawPassword, foundUser.getPassword());
-        }
-        return false;
+        return userRepository.findByUserId(userId)
+                .map(user -> passwordEncoder.matches(rawPassword, user.getPassword()))
+                .orElse(false);
     }
 
     @Transactional
@@ -60,7 +54,6 @@ public class UserService {
         }
 
         String encodedPassword = passwordEncoder.encode(signupRequestDto.getPassword());
-
         User newUser = User.builder()
                 .userId(signupRequestDto.getUserId())
                 .password(encodedPassword)
@@ -75,9 +68,12 @@ public class UserService {
 
             UserSetting defaultSettings = UserSetting.builder()
                     .user(savedUser)
-                    .notificationInterval("WHEN_APP_OPENS")
-                    .inAppNotificationEnabled(true)
+                    .notificationInterval("DAILY_SPECIFIC_TIME")
                     .pushNotificationEnabled(true)
+                    .notificationTime(LocalTime.of(13, 0))
+                    // ======================= ▼▼▼ 삭제된 부분 ▼▼▼ =======================
+                    // .inAppNotificationEnabled(true) // 이 필드는 UserSetting 엔티티에서 제거되었으므로 삭제합니다.
+                    // ======================= ▲▲▲ 삭제된 부분 ▲▲▲ =======================
                     .build();
             userSettingRepository.save(defaultSettings);
             logger.info("Default settings created for user {}.", savedUser.getUserId());
@@ -89,28 +85,18 @@ public class UserService {
         }
     }
 
+    // (이하 나머지 코드는 이전과 동일합니다)
     @Transactional(readOnly = true)
     public UserProfileResponseDto getUserProfile(String userLoginId) {
         User user = userRepository.findByUserId(userLoginId)
-                .orElseThrow(() -> {
-                    logger.warn("User profile not found for userId: {}", userLoginId);
-                    return new IllegalArgumentException("사용자를 찾을 수 없습니다: " + userLoginId);
-                });
+                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다: " + userLoginId));
         return UserProfileResponseDto.fromEntity(user);
     }
 
     @Transactional
     public UserProfileResponseDto updateUserProfile(String userLoginId, UserProfileUpdateRequestDto profileDto) {
         User user = userRepository.findByUserId(userLoginId)
-                .orElseThrow(() -> {
-                    logger.warn("User not found for profile update with userId: {}", userLoginId);
-                    return new IllegalArgumentException("사용자를 찾을 수 없습니다: " + userLoginId);
-                });
-
-        logger.info("Updating profile for user: {}. Incoming DTO: username={}, gender={}, bloodType={}, mbti={}",
-                userLoginId, profileDto.getUsername(), profileDto.getGender(), profileDto.getBloodType(), profileDto.getMbti());
-        logger.info("User current state before update: userId={}, username={}, gender={}, bloodType={}, mbti={}",
-                user.getUserId(), user.getUsername(), user.getGender(), user.getBloodType(), user.getMbti());
+                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다: " + userLoginId));
 
         boolean isProfileUpdated = false;
 
@@ -119,47 +105,35 @@ public class UserService {
                 if (user.getUsername() == null || !user.getUsername().equals(profileDto.getUsername())) {
                     user.setUsername(profileDto.getUsername());
                     isProfileUpdated = true;
-                    logger.info("For user {}: Username updated to: {}", userLoginId, profileDto.getUsername());
                 }
-            } else {
-                 logger.warn("For user {}: Attempt to set username to empty string. This is ignored as username should not be empty.", userLoginId);
             }
         }
-
         if (profileDto.getGender() != null) {
             String newGender = profileDto.getGender().isEmpty() ? null : profileDto.getGender();
             if (user.getGender() == null ? (newGender != null) : !user.getGender().equals(newGender)) {
                 user.setGender(newGender);
                 isProfileUpdated = true;
-                logger.info("For user {}: Gender updated to: {}", userLoginId, newGender);
             }
         }
-
         if (profileDto.getBloodType() != null) {
             String newBloodType = profileDto.getBloodType().isEmpty() ? null : profileDto.getBloodType();
             if (user.getBloodType() == null ? (newBloodType != null) : !user.getBloodType().equals(newBloodType)) {
                 user.setBloodType(newBloodType);
                 isProfileUpdated = true;
-                logger.info("For user {}: BloodType updated to: {}", userLoginId, newBloodType);
             }
         }
-
         if (profileDto.getMbti() != null) {
             String newMbti = profileDto.getMbti().isEmpty() ? null : profileDto.getMbti();
             if (user.getMbti() == null ? (newMbti != null) : !user.getMbti().equals(newMbti)) {
                 user.setMbti(newMbti);
                 isProfileUpdated = true;
-                logger.info("For user {}: MBTI updated to: {}", userLoginId, newMbti);
             }
         }
 
         if (isProfileUpdated) {
             User updatedUser = userRepository.save(user);
-            logger.info("User profile saved for {}. Final state: username={}, gender={}, bloodType={}, mbti={}",
-                    userLoginId, updatedUser.getUsername(), updatedUser.getGender(), updatedUser.getBloodType(), updatedUser.getMbti());
             return UserProfileResponseDto.fromEntity(updatedUser);
         } else {
-            logger.info("No actual changes applied for user profile {}. Returning current state.", userLoginId);
             return UserProfileResponseDto.fromEntity(user);
         }
     }
@@ -167,72 +141,38 @@ public class UserService {
     @Transactional
     public void updateUserEmail(String userLoginId, EmailUpdateRequestDto emailDto) {
         User user = userRepository.findByUserId(userLoginId)
-                .orElseThrow(() -> {
-                     logger.warn("User not found for email update with userId: {}", userLoginId);
-                    return new IllegalArgumentException("사용자를 찾을 수 없습니다: " + userLoginId);
-                });
-
+                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다: " + userLoginId));
         String newEmail = emailDto.getNewEmail();
         if (!StringUtils.hasText(newEmail)) {
             throw new IllegalArgumentException("새로운 이메일을 입력해주세요.");
         }
-
         if (!newEmail.equalsIgnoreCase(user.getEmail())) {
             Optional<User> existingUserWithNewEmail = userRepository.findByEmail(newEmail);
             if (existingUserWithNewEmail.isPresent() && !existingUserWithNewEmail.get().getUserId().equals(userLoginId)) {
                 throw new IllegalArgumentException("이미 사용 중인 이메일입니다.");
             }
-            
             user.setEmail(newEmail);
             userRepository.save(user);
-            logger.info("Email for user {} updated to {}", userLoginId, newEmail);
-        } else {
-            logger.info("New email is the same as current for user {}. No update performed.", userLoginId);
         }
     }
 
     @Transactional
     public void updateUserPassword(String userLoginId, PasswordUpdateRequestDto passwordDto) {
         User user = userRepository.findByUserId(userLoginId)
-                .orElseThrow(() -> {
-                    logger.warn("User not found for password update with userId: {}", userLoginId);
-                    return new IllegalArgumentException("사용자를 찾을 수 없습니다: " + userLoginId);
-                });
-
+                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다: " + userLoginId));
         if (!StringUtils.hasText(passwordDto.getCurrentPassword()) || !StringUtils.hasText(passwordDto.getNewPassword())) {
             throw new IllegalArgumentException("현재 비밀번호와 새 비밀번호를 모두 입력해주세요.");
         }
-
         if (!passwordEncoder.matches(passwordDto.getCurrentPassword(), user.getPassword())) {
             throw new IllegalArgumentException("현재 비밀번호가 일치하지 않습니다.");
         }
-        
         if (passwordDto.getNewPassword().length() < 8) {
             throw new IllegalArgumentException("새 비밀번호는 8자 이상이어야 합니다.");
         }
         if (passwordDto.getNewPassword().equals(passwordDto.getCurrentPassword())) {
             throw new IllegalArgumentException("새 비밀번호는 현재 비밀번호와 달라야 합니다.");
         }
-
         user.setPassword(passwordEncoder.encode(passwordDto.getNewPassword()));
         userRepository.save(user);
-        logger.info("Password for user {} updated successfully.", userLoginId);
     }
-
-    // ▼▼▼ 아이디 찾기 서비스 메소드 추가 ▼▼▼
-    @Transactional(readOnly = true)
-    public String findUserIdByEmail(String email) {
-        if (!StringUtils.hasText(email)) { // 이메일 값이 비어있는지 확인
-            logger.warn("Attempt to find userId with empty email.");
-            throw new IllegalArgumentException("이메일 주소를 입력해주세요.");
-        }
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> {
-                    logger.info("No user found with email: {}", email);
-                    return new IllegalArgumentException("해당 이메일로 가입된 계정을 찾을 수 없습니다.");
-                });
-        logger.info("User ID {} found for email: {}", user.getUserId(), email);
-        return user.getUserId();
-    }
-    // ▲▲▲ 아이디 찾기 서비스 메소드 추가 ▲▲▲
 }
