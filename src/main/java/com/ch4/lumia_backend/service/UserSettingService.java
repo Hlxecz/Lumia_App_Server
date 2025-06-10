@@ -50,12 +50,6 @@ public class UserSettingService {
             userSetting.setNotificationTime(null);
         }
 
-        // ======================= ▼▼▼ 삭제된 부분 ▼▼▼ =======================
-        // if (userSettingDto.getInAppNotificationEnabled() != null) {
-        //     userSetting.setInAppNotificationEnabled(userSettingDto.getInAppNotificationEnabled());
-        // }
-        // ======================= ▲▲▲ 삭제된 부분 ▲▲▲ =======================
-
         if (userSettingDto.getPushNotificationEnabled() != null) {
             userSetting.setPushNotificationEnabled(userSettingDto.getPushNotificationEnabled());
         }

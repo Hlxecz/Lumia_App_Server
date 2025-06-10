@@ -175,4 +175,16 @@ public class UserService {
         user.setPassword(passwordEncoder.encode(passwordDto.getNewPassword()));
         userRepository.save(user);
     }
+    
+    @Transactional(readOnly = true)
+    public String findUserIdByEmail(String email) {
+        if (email == null || email.trim().isEmpty()) {
+            throw new IllegalArgumentException("이메일 주소를 입력해주세요.");
+        }
+        
+        User foundUser = userRepository.findByEmail(email.trim())
+                .orElseThrow(() -> new IllegalArgumentException("해당 이메일로 가입된 아이디를 찾을 수 없습니다."));
+        
+        return foundUser.getUserId();
+    }
 }

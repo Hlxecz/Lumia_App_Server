@@ -8,6 +8,6 @@ import lombok.Setter;
 @Setter // Controller에서 @RequestBody로 받기 위해 필요
 public class AnswerRequestDto {
     private Long questionId;
-    private String answerText;
-    private String emotionTag; // 선택 사항
+    private String content;
+    private String emotionTag; // 선택 사항	
 }

@@ -204,4 +204,16 @@ public class UserController {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
+    
+    @GetMapping("/auth/find-id")
+    public ResponseEntity<?> findIdByEmail(@RequestParam("email") String email) {
+        try {
+            String foundUserId = userService.findUserIdByEmail(email);
+            // 성공 시, 찾은 아이디를 JSON 형태로 반환
+            return ResponseEntity.ok(new UserIdResponseDto(foundUserId));
+        } catch (IllegalArgumentException e) {
+            // 사용자를 찾지 못했을 경우, 404 Not Found 상태와 에러 메시지 반환
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
+        }
+    }
 }
