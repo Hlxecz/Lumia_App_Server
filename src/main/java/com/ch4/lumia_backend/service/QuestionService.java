@@ -30,15 +30,22 @@ public class QuestionService {
     private final QuestionRepository questionRepository;
     private final UserRepository userRepository;
     private final UserSettingRepository userSettingRepository;
-    private final UserAnswerRepository userAnswerRepository; // 답변 확인용
+    private final UserAnswerRepository userAnswerRepository;
 
-    // [이름 변경] 정기 질문을 가져오는 메소드
     @Transactional
     public NewMessageResponseDto getScheduledQuestionForUser(String userId) {
         User user = findUserByLoginId(userId);
         UserSetting setting = findOrCreateUserSetting(user);
+        LocalDateTime lastIssuedAt = setting.getLastIssuedAt();
 
-        // 5번 요구사항: 답변 안 한 메시지 확인
+        // ======================= ▼▼▼ 수정된 부분 ▼▼▼ =======================
+        // 1. 최초 사용자(질문 받은 기록 없음)인 경우, 시간과 관계없이 즉시 첫 질문 제공
+        if (lastIssuedAt == null) {
+            logger.info("First question for new user {}. Providing immediately.", userId);
+            return issueNewQuestion(setting, "SCHEDULED_MESSAGE", true);
+        }
+
+        // 2. 기존 사용자의 경우, 답변 안 한 메시지가 있는지 확인
         if (setting.getLastIssuedQuestionId() != null) {
             Question lastQuestion = questionRepository.findById(setting.getLastIssuedQuestionId()).orElse(null);
             if (lastQuestion != null && !userAnswerRepository.existsByUserAndQuestion(user, lastQuestion)) {
@@ -47,29 +54,28 @@ public class QuestionService {
             }
         }
         
-        // 3번 & 5번 요구사항: 새로운 정기 질문 제공 시간 확인
+        // 3. 답변도 완료했고, 이제 다음 정기 질문을 받을 시간인지 확인
         if (setting.getNotificationTime() == null) {
-            return new NewMessageResponseDto(false, null); // 시간 설정 안했으면 제공 안 함
+            return new NewMessageResponseDto(false, null);
         }
 
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime todayScheduledTime = now.toLocalDate().atTime(setting.getNotificationTime());
-        LocalDateTime lastIssuedAt = setting.getLastIssuedAt();
 
-        if (now.isAfter(todayScheduledTime) && (lastIssuedAt == null || lastIssuedAt.isBefore(todayScheduledTime))) {
+        if (now.isAfter(todayScheduledTime) && lastIssuedAt.isBefore(todayScheduledTime)) {
             return issueNewQuestion(setting, "SCHEDULED_MESSAGE", true);
         }
 
+        logger.debug("Not yet time for a new message for user {}", userId);
         return new NewMessageResponseDto(false, null);
+        // ======================= ▲▲▲ 수정된 부분 ▲▲▲ =======================
     }
 
-    // 4번 요구사항: 추가 질문(On-Demand)을 가져오는 메소드
     @Transactional
     public NewMessageResponseDto getOnDemandQuestion(String userId) {
         User user = findUserByLoginId(userId);
         UserSetting setting = findOrCreateUserSetting(user);
 
-        // 하루에 한 번만 제공하는 규칙 확인
         if (setting.getLastDailyMoodAt() != null && setting.getLastDailyMoodAt().toLocalDate().isEqual(LocalDate.now())) {
             logger.warn("User {} requested an on-demand question today already.", userId);
             throw new IllegalStateException("추가 질문은 하루에 한 번만 받을 수 있어요.");
@@ -79,7 +85,6 @@ public class QuestionService {
         return issueNewQuestion(setting, "DAILY_MOOD", false);
     }
 
-    // 공통 로직: 새로운 질문을 찾아서 제공하고 상태를 업데이트
     private NewMessageResponseDto issueNewQuestion(UserSetting setting, String questionType, boolean isScheduled) {
         Optional<Question> questionOpt = questionRepository.findRandomActiveQuestionByType(questionType);
 
@@ -109,7 +114,7 @@ public class QuestionService {
                     logger.info("UserSetting not found for user {}, creating default settings.", user.getUserId());
                     UserSetting defaultSettings = UserSetting.builder()
                         .user(user)
-                        .notificationTime(LocalTime.of(13,0)) // 기본 시간 설정
+                        .notificationTime(LocalTime.of(13,0))
                         .build();
                     return userSettingRepository.save(defaultSettings);
                 });

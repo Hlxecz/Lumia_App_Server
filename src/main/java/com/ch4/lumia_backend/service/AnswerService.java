@@ -33,7 +33,7 @@ public class AnswerService {
         UserAnswer userAnswer = UserAnswer.builder()
                 .user(user)
                 .question(question)
-                .answerText(answerRequestDto.getAnswerText())
+                .answerText(answerRequestDto.getContent())
                 .emotionTag(answerRequestDto.getEmotionTag())
                 .build();
         // answeredAt은 @PrePersist로 UserAnswer 엔티티 내에서 자동 설정됨
