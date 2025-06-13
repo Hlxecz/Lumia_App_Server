@@ -38,7 +38,6 @@ public class QuestionService {
         UserSetting setting = findOrCreateUserSetting(user);
         LocalDateTime lastIssuedAt = setting.getLastIssuedAt();
 
-        // ======================= ▼▼▼ 수정된 부분 ▼▼▼ =======================
         // 1. 최초 사용자(질문 받은 기록 없음)인 경우, 시간과 관계없이 즉시 첫 질문 제공
         if (lastIssuedAt == null) {
             logger.info("First question for new user {}. Providing immediately.", userId);
@@ -62,13 +61,15 @@ public class QuestionService {
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime todayScheduledTime = now.toLocalDate().atTime(setting.getNotificationTime());
 
-        if (now.isAfter(todayScheduledTime) && lastIssuedAt.isBefore(todayScheduledTime)) {
+        // ======================= ▼▼▼ 수정된 부분 ▼▼▼ =======================
+        // 마지막 질문 받은 날짜가 '오늘'보다 이전인지 확인하는 것으로 조건 변경
+        if (now.isAfter(todayScheduledTime) && lastIssuedAt.toLocalDate().isBefore(now.toLocalDate())) {
             return issueNewQuestion(setting, "SCHEDULED_MESSAGE", true);
         }
+        // ======================= ▲▲▲ 수정된 부분 ▲▲▲ =======================
 
         logger.debug("Not yet time for a new message for user {}", userId);
         return new NewMessageResponseDto(false, null);
-        // ======================= ▲▲▲ 수정된 부분 ▲▲▲ =======================
     }
 
     @Transactional
