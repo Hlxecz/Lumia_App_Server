@@ -1,16 +1,16 @@
-package com.ch4.lumia_backend; // 메인 클래스와 같은 패키지
+package com.ch4.lumia_backend;
 
-import com.ch4.lumia_backend.entity.Question; // Question 엔티티 import
+import com.ch4.lumia_backend.entity.Question;
 import com.ch4.lumia_backend.entity.User;
-import com.ch4.lumia_backend.repository.QuestionRepository; // QuestionRepository import
+import com.ch4.lumia_backend.repository.QuestionRepository;
 import com.ch4.lumia_backend.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
-import java.util.Arrays; // Arrays import
-import java.util.List;   // List import
+import java.util.Arrays;
+import java.util.List;
 
 @Component
 @RequiredArgsConstructor
@@ -18,7 +18,7 @@ public class TestDataInit implements CommandLineRunner {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
-    private final QuestionRepository questionRepository; // QuestionRepository 주입
+    private final QuestionRepository questionRepository;
 
     @Override
     public void run(String... args) throws Exception {
@@ -36,6 +36,8 @@ public class TestDataInit implements CommandLineRunner {
                     .username("테스트유저")
                     .email("test@example.com")
                     .role("ROLE_USER")
+                    .coin(0)
+                    .characterLevel(1)
                     .build();
             userRepository.save(testUser);
             System.out.println(">>> 테스트 사용자(" + testUserId + ") 생성 완료.");
@@ -44,14 +46,13 @@ public class TestDataInit implements CommandLineRunner {
         }
 
         // --- 기본 질문 데이터 생성 ---
-        // 만약 Question 테이블이 비어있을 경우에만 초기 데이터 삽입 (선택적)
         if (questionRepository.count() == 0) {
             System.out.println(">>> 기본 질문 데이터 생성 시작...");
             List<Question> initialQuestions = Arrays.asList(
                 Question.builder()
                     .questionText("오늘 하루, 당신을 웃게 만든 작은 순간은 무엇이었나요?")
-                    .questionType("SCHEDULED_MESSAGE") // 질문 유형 설정
-                    .isActive(true) // 활성화 여부
+                    .questionType("SCHEDULED_MESSAGE")
+                    .isActive(true)
                     .build(),
                 Question.builder()
                     .questionText("지금 가장 감사하게 생각나는 사람이나 일이 있다면 무엇인가요?")
@@ -75,7 +76,7 @@ public class TestDataInit implements CommandLineRunner {
                     .build(),
                 Question.builder()
                     .questionText("오늘 하루 중 가장 평화로웠던 순간은 언제였나요?")
-                    .questionType("DAILY_MOOD") // 다른 유형의 질문도 추가 가능
+                    .questionType("DAILY_MOOD")
                     .isActive(true)
                     .build(),
                 Question.builder()

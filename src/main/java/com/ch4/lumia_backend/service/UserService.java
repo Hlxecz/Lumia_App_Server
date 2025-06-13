@@ -20,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalTime;
+import java.util.List;
 import java.util.Optional;
 
 @Service
@@ -60,6 +61,8 @@ public class UserService {
                 .username(signupRequestDto.getUsername())
                 .email(signupRequestDto.getEmail())
                 .role("ROLE_USER")
+                .coin(0) // 회원가입 시 코인을 0으로 초기화
+                .characterLevel(1) // 회원가입 시 캐릭터 레벨을 1로 초기화
                 .build();
 
         try {
@@ -71,9 +74,6 @@ public class UserService {
                     .notificationInterval("DAILY_SPECIFIC_TIME")
                     .pushNotificationEnabled(true)
                     .notificationTime(LocalTime.of(13, 0))
-                    // ======================= ▼▼▼ 삭제된 부분 ▼▼▼ =======================
-                    // .inAppNotificationEnabled(true) // 이 필드는 UserSetting 엔티티에서 제거되었으므로 삭제합니다.
-                    // ======================= ▲▲▲ 삭제된 부분 ▲▲▲ =======================
                     .build();
             userSettingRepository.save(defaultSettings);
             logger.info("Default settings created for user {}.", savedUser.getUserId());
@@ -186,5 +186,34 @@ public class UserService {
                 .orElseThrow(() -> new IllegalArgumentException("해당 이메일로 가입된 아이디를 찾을 수 없습니다."));
         
         return foundUser.getUserId();
+    }
+    
+    @Transactional
+    public void updateEquippedItems(String userLoginId, List<String> equippedItemNames) {
+        User user = userRepository.findByUserId(userLoginId)
+                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다: " + userLoginId));
+
+        // 기존 목록을 비우고 새로운 목록으로 교체
+        user.getEquippedItems().clear();
+        if (equippedItemNames != null) {
+            user.getEquippedItems().addAll(equippedItemNames);
+        }
+        // @Transactional에 의해 메소드 종료 시 변경 사항이 DB에 자동 저장됩니다.
+    }
+    
+    @Transactional
+    public int updateUserCoins(String userId, int amount) {
+        User user = findByUserId(userId);
+        int currentCoins = user.getCoin();
+        int newCoins = currentCoins + amount;
+
+        if (newCoins < 0) {
+            throw new IllegalArgumentException("코인이 부족합니다.");
+        }
+
+        user.setCoin(newCoins);
+        logger.info("User {} coins updated. From {} to {}. (Change: {})", userId, currentCoins, newCoins, amount);
+        // @Transactional에 의해 user 객체는 자동 저장됩니다.
+        return newCoins;
     }
 }
