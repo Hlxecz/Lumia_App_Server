@@ -1,21 +1,43 @@
 // src/main/java/com/ch4/lumia_backend/controller/UserController.java
 package com.ch4.lumia_backend.controller;
 
-import com.ch4.lumia_backend.dto.*;
-import com.ch4.lumia_backend.entity.RefreshToken;
-import com.ch4.lumia_backend.entity.User;
-import com.ch4.lumia_backend.security.jwt.JwtUtil;
-import com.ch4.lumia_backend.service.RefreshTokenService;
-import com.ch4.lumia_backend.service.UserService;
-import com.ch4.lumia_backend.service.UserSettingService;
-import lombok.RequiredArgsConstructor;
+import java.util.Map;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.ch4.lumia_backend.dto.CoinUpdateRequestDto;
+import com.ch4.lumia_backend.dto.EmailUpdateRequestDto;
+import com.ch4.lumia_backend.dto.EquippedItemsUpdateRequestDto;
+import com.ch4.lumia_backend.dto.LoginRequestDto;
+import com.ch4.lumia_backend.dto.LoginResponseDto;
+import com.ch4.lumia_backend.dto.PasswordUpdateRequestDto;
+import com.ch4.lumia_backend.dto.RefreshTokenRequestDto;
+import com.ch4.lumia_backend.dto.SignupRequestDto;
+import com.ch4.lumia_backend.dto.TokenRefreshResponseDto;
+import com.ch4.lumia_backend.dto.UserIdResponseDto;
+import com.ch4.lumia_backend.dto.UserProfileResponseDto;
+import com.ch4.lumia_backend.dto.UserProfileUpdateRequestDto;
+import com.ch4.lumia_backend.dto.UserSettingDto;
+import com.ch4.lumia_backend.entity.RefreshToken;
+import com.ch4.lumia_backend.entity.User;
+import com.ch4.lumia_backend.security.jwt.JwtUtil;
+import com.ch4.lumia_backend.service.RefreshTokenService;
+import com.ch4.lumia_backend.service.UserService;
+import com.ch4.lumia_backend.service.UserSettingService;
+
+import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api/users") // 기본 경로 일관성 유지
@@ -202,6 +224,55 @@ public class UserController {
             return ResponseEntity.ok("비밀번호가 성공적으로 변경되었습니다.");
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+    
+    @GetMapping("/auth/find-id")
+    public ResponseEntity<?> findIdByEmail(@RequestParam("email") String email) {
+        try {
+            String foundUserId = userService.findUserIdByEmail(email);
+            // 성공 시, 찾은 아이디를 JSON 형태로 반환
+            return ResponseEntity.ok(new UserIdResponseDto(foundUserId));
+        } catch (IllegalArgumentException e) {
+            // 사용자를 찾지 못했을 경우, 404 Not Found 상태와 에러 메시지 반환
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
+        }
+    }
+    
+    @PutMapping("/me/equipped-items")
+    public ResponseEntity<?> updateUserEquippedItems(@RequestBody EquippedItemsUpdateRequestDto dto) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated() || "anonymousUser".equals(authentication.getName())) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("인증 정보가 유효하지 않습니다.");
+        }
+        String currentUserId = authentication.getName();
+        
+        try {
+            userService.updateEquippedItems(currentUserId, dto.getEquippedItems());
+            return ResponseEntity.ok("착용 아이템 정보가 업데이트되었습니다.");
+        } catch (Exception e) {
+            logger.error("Error updating equipped items for user {}: {}", currentUserId, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("아이템 정보 업데이트 중 오류 발생");
+        }
+    }
+    
+    @PostMapping("/me/coins")
+    public ResponseEntity<?> updateUserCoins(@RequestBody CoinUpdateRequestDto coinUpdateDto) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated() || "anonymousUser".equals(authentication.getName())) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("인증 정보가 유효하지 않습니다.");
+        }
+        String currentUserId = authentication.getName();
+
+        try {
+            int newCoinValue = userService.updateUserCoins(currentUserId, coinUpdateDto.getAmount());
+            return ResponseEntity.ok(Map.of("coins", newCoinValue));
+        } catch (IllegalArgumentException e) {
+            // 코인이 부족할 경우 400 Bad Request 반환
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
+        } catch (Exception e) {
+            logger.error("Error updating coins for user {}: {}", currentUserId, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("코인 정보 업데이트 중 오류 발생");
         }
     }
 }
