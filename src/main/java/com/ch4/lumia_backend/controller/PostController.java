@@ -9,11 +9,14 @@ import com.ch4.lumia_backend.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.http.*;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.HashMap;
@@ -27,9 +30,20 @@ public class PostController {
     private static final Logger logger = LoggerFactory.getLogger(PostController.class);
     private final PostService postService;
     private final UserService userService;
-    private final RestTemplate restTemplate = new RestTemplate();
-    private final String FASTAPI_URL = "http://3.143.210.229:8000/filter_post"; // EC2라면 외부 IP로 변경
+    private final RestTemplate restTemplate = createRestTemplate();
 
+    @Value("${content-filter.enabled:false}")
+    private boolean contentFilterEnabled;
+
+    @Value("${content-filter.url:http://3.39.239.196:8000/filter_post}")
+    private String contentFilterUrl;
+
+    private static RestTemplate createRestTemplate() {
+        SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
+        requestFactory.setConnectTimeout(3000);
+        requestFactory.setReadTimeout(3000);
+        return new RestTemplate(requestFactory);
+    }
     @GetMapping("/list")
     public ResponseEntity<?> getPosts(@RequestParam(name = "page", defaultValue = "0") int page,
                                       @RequestParam(name = "size",defaultValue = "5") int size) {
@@ -57,19 +71,10 @@ public class PostController {
 
         try {
             // FastAPI 필터링 호출
-            Map<String, String> filterRequest = new HashMap<>();
-            filterRequest.put("title", postDto.getTitle());
-            filterRequest.put("content", postDto.getContent());
+            Map<String, Object> filterResult = filterPostContent(postDto);
 
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
-            HttpEntity<Map<String, String>> entity = new HttpEntity<>(filterRequest, headers);
-
-            ResponseEntity<Map> response = restTemplate.postForEntity(FASTAPI_URL, entity, Map.class);
-            Map<String, Object> body = response.getBody();
-
-            if (body != null && Boolean.TRUE.equals(body.get("blocked"))) {
-                String reason = (String) body.get("reason");
+            if (filterResult != null && Boolean.TRUE.equals(filterResult.get("blocked"))) {
+                String reason = (String) filterResult.get("reason");
                 return ResponseEntity.badRequest().body(
                         Map.of(
                                 "error", true,
@@ -122,19 +127,10 @@ public class PostController {
 
         try {
             // 욕설/혐오 필터링 재검사
-            Map<String, String> filterRequest = new HashMap<>();
-            filterRequest.put("title", postDto.getTitle());
-            filterRequest.put("content", postDto.getContent());
+            Map<String, Object> filterResult = filterPostContent(postDto);
 
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
-            HttpEntity<Map<String, String>> entity = new HttpEntity<>(filterRequest, headers);
-
-            ResponseEntity<Map> response = restTemplate.postForEntity(FASTAPI_URL, entity, Map.class);
-            Map<String, Object> body = response.getBody();
-
-            if (body != null && Boolean.TRUE.equals(body.get("blocked"))) {
-                String reason = (String) body.get("reason");
+            if (filterResult != null && Boolean.TRUE.equals(filterResult.get("blocked"))) {
+                String reason = (String) filterResult.get("reason");
                 return ResponseEntity.badRequest().body(
                         Map.of(
                                 "error", true,
@@ -179,6 +175,30 @@ public class PostController {
             logger.error("게시글 삭제 실패 - {}: {}", id, e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", true, "message", "게시글 삭제 중 오류 발생"));
+        }
+    }
+
+    private Map<String, Object> filterPostContent(PostRequestDto postDto) {
+        if (!contentFilterEnabled) {
+            return null;
+        }
+
+        Map<String, String> filterRequest = new HashMap<>();
+        filterRequest.put("title", postDto.getTitle());
+        filterRequest.put("content", postDto.getContent());
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        HttpEntity<Map<String, String>> entity = new HttpEntity<>(filterRequest, headers);
+
+        try {
+            ResponseEntity<Map> response = restTemplate.postForEntity(contentFilterUrl, entity, Map.class);
+            Map body = response.getBody();
+            return body == null ? null : new HashMap<String, Object>(body);
+        } catch (RestClientException e) {
+            logger.warn("Content filter request failed. Continuing without filtering. url={}, error={}",
+                    contentFilterUrl, e.getMessage());
+            return null;
         }
     }
 }

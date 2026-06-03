@@ -22,3 +22,5 @@ services:
         value: "true"
       - key: JAVA_OPTS
         value: -XX:MaxRAMPercentage=75.0
+      - key: CONTENT_FILTER_ENABLED
+        value: "false"
