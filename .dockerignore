@@ -1,0 +1,10 @@
+.git
+.gradle
+.gradle-local
+.idea
+.metadata
+.settings
+bin
+build
+*.log
+hs_err_pid*.log

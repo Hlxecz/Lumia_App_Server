@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: lumia-app-server
+    runtime: docker
+    plan: free
+    envVars:
+      - key: DB_DRIVER
+        value: com.mysql.cj.jdbc.Driver
+      - key: DB_URL
+        value: jdbc:mysql://lumia-db-lumia.h.aivencloud.com:21541/defaultdb?sslmode=REQUIRED&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul
+      - key: DB_USERNAME
+        value: avnadmin
+      - key: DB_PASSWORD
+        sync: false
+      - key: JPA_DATABASE_PLATFORM
+        value: org.hibernate.dialect.MySQLDialect
+      - key: JPA_DDL_AUTO
+        value: update
+      - key: JPA_SHOW_SQL
+        value: "true"
+      - key: JPA_FORMAT_SQL
+        value: "true"
+      - key: JAVA_OPTS
+        value: -XX:MaxRAMPercentage=75.0
