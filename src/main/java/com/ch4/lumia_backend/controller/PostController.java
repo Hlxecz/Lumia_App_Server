@@ -11,11 +11,23 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
-import org.springframework.http.*;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
@@ -32,7 +44,7 @@ public class PostController {
     private final UserService userService;
     private final RestTemplate restTemplate = createRestTemplate();
 
-    @Value("${content-filter.enabled:false}")
+    @Value("${content-filter.enabled:true}")
     private boolean contentFilterEnabled;
 
     @Value("${content-filter.url:http://3.39.239.196:8000/filter_post}")
@@ -44,9 +56,10 @@ public class PostController {
         requestFactory.setReadTimeout(3000);
         return new RestTemplate(requestFactory);
     }
+
     @GetMapping("/list")
     public ResponseEntity<?> getPosts(@RequestParam(name = "page", defaultValue = "0") int page,
-                                      @RequestParam(name = "size",defaultValue = "5") int size) {
+                                      @RequestParam(name = "size", defaultValue = "5") int size) {
         logger.info("게시글 목록 조회 요청 - page: {}, size: {}", page, size);
         try {
             Page<Post> postPage = postService.getPosts(page, size);
@@ -70,18 +83,14 @@ public class PostController {
         }
 
         try {
-            // FastAPI 필터링 호출
             Map<String, Object> filterResult = filterPostContent(postDto);
-
             if (filterResult != null && Boolean.TRUE.equals(filterResult.get("blocked"))) {
                 String reason = (String) filterResult.get("reason");
-                return ResponseEntity.badRequest().body(
-                        Map.of(
-                                "error", true,
-                                "message", "게시글 작성이 차단되었습니다.",
-                                "reason", reason != null ? reason : "금지된 내용"
-                        )
-                );
+                return ResponseEntity.badRequest().body(Map.of(
+                        "error", true,
+                        "message", "게시글 작성이 차단되었습니다.",
+                        "reason", reason != null ? reason : "금지된 내용"
+                ));
             }
 
             User user = userService.findByUserId(currentUserId);
@@ -92,7 +101,10 @@ public class PostController {
                     user
             );
             return ResponseEntity.status(HttpStatus.CREATED).body(new PostResponseDto(createdPost));
-
+        } catch (IllegalStateException e) {
+            logger.warn("Content filter unavailable for user {}: {}", currentUserId, e.getMessage());
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                    .body(Map.of("error", true, "message", "게시글 검증 서버에 연결할 수 없습니다."));
         } catch (Exception e) {
             logger.error("게시글 작성 실패 - {}: {}", currentUserId, e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -126,24 +138,23 @@ public class PostController {
         }
 
         try {
-            // 욕설/혐오 필터링 재검사
             Map<String, Object> filterResult = filterPostContent(postDto);
-
             if (filterResult != null && Boolean.TRUE.equals(filterResult.get("blocked"))) {
                 String reason = (String) filterResult.get("reason");
-                return ResponseEntity.badRequest().body(
-                        Map.of(
-                                "error", true,
-                                "message", "게시글 수정이 차단되었습니다.",
-                                "reason", reason != null ? reason : "금지된 내용"
-                        )
-                );
+                return ResponseEntity.badRequest().body(Map.of(
+                        "error", true,
+                        "message", "게시글 수정이 차단되었습니다.",
+                        "reason", reason != null ? reason : "금지된 내용"
+                ));
             }
 
             User user = userService.findByUserId(currentUserId);
             Post updatedPost = postService.updatePost(id, postDto, user);
             return ResponseEntity.ok(new PostResponseDto(updatedPost));
-
+        } catch (IllegalStateException e) {
+            logger.warn("Content filter unavailable for update {}: {}", id, e.getMessage());
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                    .body(Map.of("error", true, "message", "게시글 검증 서버에 연결할 수 없습니다."));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(Map.of("error", true, "message", e.getMessage()));
@@ -196,9 +207,8 @@ public class PostController {
             Map body = response.getBody();
             return body == null ? null : new HashMap<String, Object>(body);
         } catch (RestClientException e) {
-            logger.warn("Content filter request failed. Continuing without filtering. url={}, error={}",
-                    contentFilterUrl, e.getMessage());
-            return null;
+            logger.warn("Content filter request failed. url={}, error={}", contentFilterUrl, e.getMessage());
+            throw new IllegalStateException("Content filter request failed", e);
         }
     }
 }
