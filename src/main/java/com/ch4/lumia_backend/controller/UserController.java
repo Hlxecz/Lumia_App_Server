@@ -143,7 +143,7 @@ public class UserController {
             return ResponseEntity.ok(settingsDto);
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
-        }
+        } 
     }
 
     @PutMapping("/me/settings")

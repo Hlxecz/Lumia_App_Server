@@ -25,7 +25,7 @@ public class CommentController {
 
     private static final Logger logger = LoggerFactory.getLogger(CommentController.class);
     private final RestTemplate restTemplate = new RestTemplate();
-    private final String FASTAPI_URL = "http://3.143.210.229:8000/filter_post";
+    private final String FASTAPI_URL = "http://3.39.239.196:8000/filter_post";
     private final CommentService commentService;
 
     @GetMapping("/api/posts/{postId}/comments")

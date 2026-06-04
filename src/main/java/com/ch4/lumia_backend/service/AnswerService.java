@@ -43,7 +43,7 @@ public class AnswerService {
         userAnswerRepository.save(userAnswer);
 
         // 답변 1개당 코인 1개 지급
-        user.setCoin(user.getCoin() + 1);
+        user.setCoin(user.getCoin() + 50);
         logger.info("Awarded 1 coin to user {}. Total coins: {}", user.getUserId(), user.getCoin());
 
         // ======================= ▼▼▼ 로직 추가 ▼▼▼ =======================
