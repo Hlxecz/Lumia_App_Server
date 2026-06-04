@@ -4,6 +4,7 @@ import com.ch4.lumia_backend.dto.PostRequestDto;
 import com.ch4.lumia_backend.dto.PostResponseDto;
 import com.ch4.lumia_backend.entity.Post;
 import com.ch4.lumia_backend.entity.User;
+import com.ch4.lumia_backend.service.ContentFilterService;
 import com.ch4.lumia_backend.service.PostService;
 import com.ch4.lumia_backend.service.UserService;
 import lombok.RequiredArgsConstructor;
@@ -42,20 +43,7 @@ public class PostController {
     private static final Logger logger = LoggerFactory.getLogger(PostController.class);
     private final PostService postService;
     private final UserService userService;
-    private final RestTemplate restTemplate = createRestTemplate();
-
-    @Value("${content-filter.enabled:true}")
-    private boolean contentFilterEnabled;
-
-    @Value("${content-filter.url:http://3.39.239.196:8000/filter_post}")
-    private String contentFilterUrl;
-
-    private static RestTemplate createRestTemplate() {
-        SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
-        requestFactory.setConnectTimeout(3000);
-        requestFactory.setReadTimeout(3000);
-        return new RestTemplate(requestFactory);
-    }
+    private final ContentFilterService contentFilterService;
 
     @GetMapping("/list")
     public ResponseEntity<?> getPosts(@RequestParam(name = "page", defaultValue = "0") int page,
@@ -190,25 +178,6 @@ public class PostController {
     }
 
     private Map<String, Object> filterPostContent(PostRequestDto postDto) {
-        if (!contentFilterEnabled) {
-            return null;
-        }
-
-        Map<String, String> filterRequest = new HashMap<>();
-        filterRequest.put("title", postDto.getTitle());
-        filterRequest.put("content", postDto.getContent());
-
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        HttpEntity<Map<String, String>> entity = new HttpEntity<>(filterRequest, headers);
-
-        try {
-            ResponseEntity<Map> response = restTemplate.postForEntity(contentFilterUrl, entity, Map.class);
-            Map body = response.getBody();
-            return body == null ? null : new HashMap<String, Object>(body);
-        } catch (RestClientException e) {
-            logger.warn("Content filter request failed. url={}, error={}", contentFilterUrl, e.getMessage());
-            throw new IllegalStateException("Content filter request failed", e);
-        }
+        return contentFilterService.filterContent(postDto.getTitle(), postDto.getContent());
     }
 }
