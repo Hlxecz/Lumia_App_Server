@@ -43,3 +43,7 @@ dependencies {
 tasks.named('test') {
 	useJUnitPlatform()
 }
+
+tasks.named('bootRun') {
+	systemProperty 'file.encoding', 'UTF-8'
+}

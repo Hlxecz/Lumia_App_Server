@@ -21,6 +21,6 @@ services:
       - key: JPA_FORMAT_SQL
         value: "true"
       - key: JAVA_OPTS
-        value: -XX:MaxRAMPercentage=75.0
+        value: -XX:MaxRAMPercentage=75.0 -Dfile.encoding=UTF-8
       - key: CONTENT_FILTER_ENABLED
         value: "true"
